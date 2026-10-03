@@ -115,6 +115,28 @@ button.thumb:hover .play { filter: brightness(1.1); }
   .caption { font-size: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .tile { transition: none; } }
+
+.wrap.wide { max-width: 1040px; }
+.song-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+.stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.paper-wrap { min-width: 0; display: flex; justify-content: center; }
+.paper-sheet {
+  width: 100%; aspect-ratio: 8.5 / 11; background: #fffef9; border: 1px solid var(--line);
+  box-shadow: 0 8px 28px rgba(0,0,0,.18); border-radius: 2px;
+}
+.paper-sheet textarea {
+  width: 100%; height: 100%; resize: none; border: 0; border-radius: 2px; background: transparent; color: #1b1b1b;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 16px; line-height: 1.55;
+  padding: 7% 8%; white-space: pre; overflow: auto;
+}
+.paper-sheet textarea::placeholder { color: #8a8a80; }
+.links.three { grid-template-rows: repeat(3, auto); grid-template-columns: 1fr; grid-auto-flow: row; max-width: 520px; }
+.clip.song { text-decoration: none; color: var(--ink); text-align: center; padding: 10px; flex-direction: column; gap: 4px; }
+.clip.song:hover { border-color: var(--accent); }
+.clip.song .name { font-family: var(--font-display); font-size: clamp(1.1rem, 4vw, 1.7rem); line-height: 1.1; overflow-wrap: anywhere; text-wrap: balance; }
+.clip.song.unnamed .name { opacity: .35; font-size: clamp(2rem, 8vw, 3.4rem); }
+.links.names input { font-size: 16px; }
+@media (max-width: 760px) { .song-layout { grid-template-columns: 1fr; } .paper-sheet { max-width: 520px; } }
 </style>
 </head>
 <body>
@@ -126,30 +148,40 @@ button.thumb:hover .play { filter: brightness(1.1); }
     { key: "scales", title: "Scales", glyph: "♯" },
     { key: "triads", title: "Triads", glyph: "♮" },
     { key: "rhythm", title: "Rhythm", glyph: "♩" },
-    { key: "songs",  title: "Songs",  glyph: "♪" }
+    { key: "songs",  title: "Songs",  glyph: "♪", songs: true }
   ];
+  function arr(n, v) { var a = []; for (var i = 0; i < n; i++) a.push(typeof v === "function" ? v() : v); return a; }
   function blank() {
-    var d = { diary: "", pages: {}, titles: {} };
-    PAGES.forEach(function (p) { d.pages[p.key] = ["", "", "", "", "", "", "", "", ""]; });
+    var d = { diary: "", pages: {}, titles: {}, songs: { names: arr(9, ""), charts: arr(9, ""), links: arr(9, function () { return arr(3, ""); }) } };
+    PAGES.forEach(function (p) { if (!p.songs) d.pages[p.key] = arr(9, ""); });
     return d;
   }
+  function str(x) { return typeof x === "string" ? x : ""; }
   function normalise(raw) {
     var d = blank();
     if (!raw || typeof raw !== "object") return d;
-    d.diary = typeof raw.diary === "string" ? raw.diary : "";
+    d.diary = str(raw.diary);
     PAGES.forEach(function (p) {
+      if (p.songs) return;
       var a = raw.pages && raw.pages[p.key];
-      for (var i = 0; i < 9; i++) d.pages[p.key][i] = a && typeof a[i] === "string" ? a[i] : "";
+      for (var i = 0; i < 9; i++) d.pages[p.key][i] = a ? str(a[i]) : "";
     });
+    var s = raw.songs;
+    if (s && typeof s === "object") {
+      for (var i = 0; i < 9; i++) {
+        d.songs.names[i] = s.names ? str(s.names[i]) : "";
+        d.songs.charts[i] = s.charts ? str(s.charts[i]) : "";
+        for (var j = 0; j < 3; j++) d.songs.links[i][j] = s.links && s.links[i] ? str(s.links[i][j]) : "";
+      }
+    }
     if (raw.titles && typeof raw.titles === "object") d.titles = raw.titles;
     return d;
   }
   var data;
   try { data = normalise(JSON.parse(localStorage.getItem(KEY))); } catch (e) { data = blank(); }
-  var storageOk = true;
   function persist() {
     try { localStorage.setItem(KEY, JSON.stringify(data)); setStatus("Saved on this device"); }
-    catch (e) { storageOk = false; setStatus("This browser is blocking saving. Turn off private browsing."); }
+    catch (e) { setStatus("This browser is blocking saving. Turn off private browsing."); }
   }
   var timer = null;
   function queueSave() { clearTimeout(timer); setStatus("Saving…"); timer = setTimeout(persist, 400); }
@@ -160,7 +192,10 @@ button.thumb:hover .play { filter: brightness(1.1); }
     var m = String(url || "").trim().match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|embed\/|live\/))([\w-]{11})/i);
     return m ? m[1] : null;
   }
-  function filledCount(key) { return data.pages[key].filter(function (u) { return ytId(u); }).length; }
+  function count(p) {
+    if (p.songs) return data.songs.names.filter(function (n) { return n.trim(); }).length;
+    return data.pages[p.key].filter(function (u) { return ytId(u); }).length;
+  }
   function el(tag, attrs, kids) {
     var e = document.createElement(tag);
     Object.keys(attrs || {}).forEach(function (k) {
@@ -169,6 +204,7 @@ button.thumb:hover .play { filter: brightness(1.1); }
     (kids || []).forEach(function (c) { e.appendChild(c); });
     return e;
   }
+  function statusRow() { return el("div", { class: "tools" }, [el("span", { class: "status", id: "status", role: "status" })]); }
 
   function getTitle(id, caption) {
     if (data.titles[id]) { caption.textContent = data.titles[id]; caption.classList.remove("dim"); return; }
@@ -183,14 +219,52 @@ button.thumb:hover .play { filter: brightness(1.1); }
       .catch(function () { caption.textContent = "Title not available"; });
   }
 
+  /* one video square with its caption */
+  function makeCell(url, n, label) {
+    var id = ytId(url), cell = el("div", { class: "cell" });
+    if (id) {
+      var btn = el("button", { class: "clip thumb", type: "button", "aria-label": "Play clip " + n }, [
+        el("span", { class: "n", text: String(n) }),
+        el("img", { src: "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg", alt: "", loading: "lazy" }),
+        el("span", { class: "play", "aria-hidden": "true", text: "▶" })
+      ]);
+      btn.addEventListener("click", function () {
+        btn.replaceWith(el("div", { class: "clip" }, [el("iframe", {
+          src: "https://www.youtube-nocookie.com/embed/" + id + "?autoplay=1&playsinline=1&rel=0",
+          title: label + " clip " + n,
+          allow: "autoplay; encrypted-media; picture-in-picture; fullscreen", allowfullscreen: ""
+        })]));
+      });
+      var cap = el("div", { class: "caption" });
+      cell.appendChild(btn); cell.appendChild(cap); getTitle(id, cap);
+    } else {
+      cell.appendChild(el("div", { class: "clip empty" }, [
+        el("span", { class: "n", text: String(n) }), el("span", { class: "big", "aria-hidden": "true", text: String(n) })
+      ]));
+      cell.appendChild(el("div", { class: "caption dim", text: " " }));
+    }
+    return cell;
+  }
+
+  /* a numbered paste line; onChange gets the trimmed value */
+  function makeLine(n, value, placeholder, isLink, onChange) {
+    var input = el("input", { id: "line" + n + Math.random().toString(36).slice(2, 6), type: isLink ? "url" : "text", autocomplete: "off", autocapitalize: isLink ? "off" : "words", placeholder: placeholder, "aria-label": placeholder + " " + n });
+    input.value = value;
+    function mark() { var v = input.value.trim(); input.classList.toggle("bad", isLink && v !== "" && !ytId(v)); }
+    mark();
+    input.addEventListener("input", function () { mark(); onChange(isLink ? input.value.trim() : input.value); });
+    return el("div", { class: "row" }, [el("label", { for: input.id, text: n + "." }), input]);
+  }
+  function swap(holder, i, make) { var old = holder.children[i]; var fresh = make(); holder.replaceChild(fresh, old); }
+
   function home() {
-    app.textContent = "";
+    app.className = "wrap"; app.textContent = "";
     var tiles = el("nav", { class: "tiles", "aria-label": "Practice sections" });
     PAGES.forEach(function (p) {
       tiles.appendChild(el("a", { class: "tile", href: "#" + p.key }, [
         el("span", { class: "glyph", "aria-hidden": "true", text: p.glyph }),
         el("h2", { text: p.title }),
-        el("span", { class: "count", text: filledCount(p.key) + " of 9 clips" })
+        el("span", { class: "count", text: count(p) + (p.songs ? " of 9 songs" : " of 9 clips") })
       ]));
     });
     var ta = el("textarea", { id: "diary", "aria-label": "Practice diary", placeholder: "What did you work on today? What felt good, what needs more time?" });
@@ -207,97 +281,104 @@ button.thumb:hover .play { filter: brightness(1.1); }
     var bkMsg = el("span", { class: "status", role: "status" });
     var copyBtn = el("button", { class: "quiet", type: "button", text: "Show my backup" });
     copyBtn.addEventListener("click", function () {
-      bk.value = JSON.stringify({ diary: data.diary, pages: data.pages });
+      bk.value = JSON.stringify({ diary: data.diary, pages: data.pages, songs: data.songs });
       bk.select();
       try { navigator.clipboard.writeText(bk.value).then(function () { bkMsg.textContent = "Copied. Paste it into a note to keep it safe."; }, function () { bkMsg.textContent = "Select the text above and copy it."; }); }
       catch (e) { bkMsg.textContent = "Select the text above and copy it."; }
     });
     var restoreBtn = el("button", { class: "quiet", type: "button", text: "Restore from text" });
     restoreBtn.addEventListener("click", function () {
-      try {
-        var next = normalise(JSON.parse(bk.value));
-        next.titles = data.titles; data = next; persist(); home();
-      } catch (e) { bkMsg.textContent = "That text is not a valid backup."; }
+      try { var next = normalise(JSON.parse(bk.value)); next.titles = data.titles; data = next; persist(); home(); }
+      catch (e) { bkMsg.textContent = "That text is not a valid backup."; }
     });
     var backup = el("details", { class: "backup" }, [
       el("summary", { text: "Backup and restore" }),
       el("div", { class: "box" }, [
-        el("p", { class: "hint", text: "Your notes and links live in this browser. Keep a copy in your Notes app in case the browser data is cleared, or to move to another device. To restore, paste a saved backup below and press Restore." }),
+        el("p", { class: "hint", text: "Your notes, links and chord charts live in this browser. Keep a copy in your Notes app in case the browser data is cleared, or to move to another device. To restore, paste a saved backup below and press Restore." }),
         bk, el("div", { class: "tools" }, [copyBtn, restoreBtn, bkMsg])
       ])
     ]);
-
     app.appendChild(el("header", {}, [el("span", { class: "eyebrow", text: "Daily practice" }), el("h1", { text: "Practice Room" })]));
     app.appendChild(tiles);
-    app.appendChild(el("section", { class: "diary" }, [
-      el("h2", { text: "Diary" }), ta,
-      el("div", { class: "tools" }, [dateBtn, el("span", { class: "status", id: "status", role: "status" })])
-    ]));
+    app.appendChild(el("section", { class: "diary" }, [el("h2", { text: "Diary" }), ta,
+      el("div", { class: "tools" }, [dateBtn, el("span", { class: "status", id: "status", role: "status" })])]));
     app.appendChild(backup);
   }
 
+  function heading(title) {
+    return el("div", { class: "page-title" }, [el("span", { class: "eyebrow", text: "Practice Room" }), el("h1", { text: title })]);
+  }
+
   function clipPage(p) {
-    app.textContent = "";
-    var grid = el("div", { class: "grid9" });
-    var links = el("div", { class: "links" });
-
-    function paintCell(i) {
-      var url = data.pages[p.key][i], id = ytId(url), cell = document.getElementById("cell" + i);
-      var fresh = el("div", { class: "cell", id: "cell" + i });
-      if (id) {
-        var btn = el("button", { class: "clip thumb", type: "button", "aria-label": "Play clip " + (i + 1) }, [
-          el("span", { class: "n", text: String(i + 1) }),
-          el("img", { src: "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg", alt: "", loading: "lazy" }),
-          el("span", { class: "play", "aria-hidden": "true", text: "▶" })
-        ]);
-        btn.addEventListener("click", function () {
-          var box = el("div", { class: "clip" }, [
-            el("iframe", {
-              src: "https://www.youtube-nocookie.com/embed/" + id + "?autoplay=1&playsinline=1&rel=0",
-              title: p.title + " clip " + (i + 1),
-              allow: "autoplay; encrypted-media; picture-in-picture; fullscreen",
-              allowfullscreen: ""
-            })
-          ]);
-          btn.replaceWith(box);
-        });
-        var cap = el("div", { class: "caption" });
-        fresh.appendChild(btn); fresh.appendChild(cap); getTitle(id, cap);
-      } else {
-        fresh.appendChild(el("div", { class: "clip empty" }, [
-          el("span", { class: "n", text: String(i + 1) }), el("span", { class: "big", "aria-hidden": "true", text: String(i + 1) })
-        ]));
-        fresh.appendChild(el("div", { class: "caption dim", text: " " }));
-      }
-      if (cell) cell.replaceWith(fresh); else grid.appendChild(fresh);
-    }
-    for (var i = 0; i < 9; i++) paintCell(i);
-
+    app.className = "wrap"; app.textContent = "";
+    var grid = el("div", { class: "grid9" }), links = el("div", { class: "links" });
+    var urls = data.pages[p.key];
+    for (var i = 0; i < 9; i++) grid.appendChild(makeCell(urls[i], i + 1, p.title));
     for (var j = 0; j < 9; j++) (function (i) {
-      var input = el("input", { id: "link" + i, type: "url", inputmode: "url", autocomplete: "off", autocapitalize: "off", placeholder: "Paste a YouTube link", "aria-label": "Link for clip " + (i + 1) });
-      input.value = data.pages[p.key][i];
-      function mark() { var v = input.value.trim(); input.classList.toggle("bad", v !== "" && !ytId(v)); }
-      mark();
-      var last = ytId(input.value);
-      input.addEventListener("input", function () {
-        data.pages[p.key][i] = input.value.trim(); mark(); queueSave();
-        var now = ytId(input.value);
-        if (now !== last) { last = now; paintCell(i); }
-      });
-      links.appendChild(el("div", { class: "row" }, [el("label", { for: "link" + i, text: (i + 1) + "." }), input]));
+      var last = ytId(urls[i]);
+      links.appendChild(makeLine(i + 1, urls[i], "Paste a YouTube link", true, function (v) {
+        urls[i] = v; queueSave();
+        var now = ytId(v);
+        if (now !== last) { last = now; swap(grid, i, function () { return makeCell(v, i + 1, p.title); }); }
+      }));
     })(j);
-
     app.appendChild(el("a", { class: "back", href: "#", text: "← Practice Room" }));
-    app.appendChild(el("div", { class: "page-title" }, [el("span", { class: "eyebrow", text: "Practice Room" }), el("h1", { text: p.title })]));
-    app.appendChild(grid); app.appendChild(links);
-    app.appendChild(el("div", { class: "tools" }, [el("span", { class: "status", id: "status", role: "status" })]));
+    app.appendChild(heading(p.title));
+    app.appendChild(grid); app.appendChild(links); app.appendChild(statusRow());
     app.appendChild(el("p", { class: "hint", text: "Tap a picture to play the clip here. Change or clear any line at any time; it saves on its own." }));
+  }
+
+  function songsPage() {
+    app.className = "wrap"; app.textContent = "";
+    var grid = el("div", { class: "grid9" }), lines = el("div", { class: "links names" });
+    var names = data.songs.names;
+    function box(i) {
+      var nm = names[i].trim();
+      return el("a", { class: "clip song" + (nm ? "" : " unnamed"), href: "#song-" + (i + 1), "aria-label": "Open " + (nm || "song " + (i + 1)) }, [
+        el("span", { class: "n", text: String(i + 1) }),
+        el("span", { class: "name", text: nm || String(i + 1) })
+      ]);
+    }
+    for (var i = 0; i < 9; i++) grid.appendChild(box(i));
+    for (var j = 0; j < 9; j++) (function (i) {
+      lines.appendChild(makeLine(i + 1, names[i], "Song title", false, function (v) {
+        names[i] = v; queueSave(); swap(grid, i, function () { return box(i); });
+      }));
+    })(j);
+    app.appendChild(el("a", { class: "back", href: "#", text: "← Practice Room" }));
+    app.appendChild(heading("Songs"));
+    app.appendChild(grid); app.appendChild(lines); app.appendChild(statusRow());
+    app.appendChild(el("p", { class: "hint", text: "Type a song’s title on its numbered line. Tap its box to open the song’s page, with videos and a chord chart." }));
+  }
+
+  function songPage(k) {
+    app.className = "wrap wide"; app.textContent = "";
+    var i = k - 1, nm = data.songs.names[i].trim() || "Song " + k;
+    var urls = data.songs.links[i];
+    var stack = el("div", { class: "stack" }), links = el("div", { class: "links three" });
+    for (var a = 0; a < 3; a++) stack.appendChild(makeCell(urls[a], a + 1, nm));
+    for (var b = 0; b < 3; b++) (function (c) {
+      var last = ytId(urls[c]);
+      links.appendChild(makeLine(c + 1, urls[c], "Paste a YouTube link", true, function (v) {
+        urls[c] = v; queueSave();
+        var now = ytId(v);
+        if (now !== last) { last = now; swap(stack, c, function () { return makeCell(v, c + 1, nm); }); }
+      }));
+    })(b);
+    var chart = el("textarea", { id: "chart", "aria-label": "Chord chart for " + nm, wrap: "off", spellcheck: "false", autocapitalize: "off", placeholder: "Type your chord chart here.\nPut the chords on the line above the words:\n\n   G            D\nIt ain’t me, babe" });
+    chart.value = data.songs.charts[i];
+    chart.addEventListener("input", function () { data.songs.charts[i] = chart.value; queueSave(); });
+    app.appendChild(el("a", { class: "back", href: "#songs", text: "← Songs" }));
+    app.appendChild(heading(nm));
+    app.appendChild(el("div", { class: "song-layout" }, [stack, el("div", { class: "paper-wrap" }, [el("div", { class: "paper-sheet" }, [chart])])]));
+    app.appendChild(links); app.appendChild(statusRow());
   }
 
   function route() {
     var h = (location.hash || "").replace("#", "").toLowerCase();
+    var sm = h.match(/^song-([1-9])$/);
     var p = PAGES.filter(function (x) { return x.key === h; })[0];
-    if (p) clipPage(p); else home();
+    if (sm) songPage(+sm[1]); else if (p && p.songs) songsPage(); else if (p) clipPage(p); else home();
     window.scrollTo(0, 0);
   }
   window.addEventListener("hashchange", route);
