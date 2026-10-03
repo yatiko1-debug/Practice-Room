@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Practice Room">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#eef0ec">
+<link rel="apple-touch-icon" href="icon.png">
+<title>Practice Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Jost:wght@300;400;500&display=swap">
+<style>
+:root {
+  --bg: #eef0ec; --surface: #f8f9f6; --ink: #18221f; --muted: #5d6b66; --line: #cdd5cf;
+  --accent: #1f5c57; --accent-ink: #f4faf8; --brass: #a07c2c;
+  --font-display: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  --font-body: "Jost", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111715; --surface: #18201d; --ink: #e8ece7; --muted: #94a39c;
+    --line: #2b3733; --accent: #7fc4b8; --accent-ink: #0d1412; --brass: #d3b165;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+  padding-inline: 20px;
+  padding-block: calc(36px + env(safe-area-inset-top, 0px)) calc(56px + env(safe-area-inset-bottom, 0px));
+}
+.wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px; }
+h1, h2 { font-family: var(--font-display); font-weight: 500; margin: 0; text-wrap: balance; letter-spacing: 0.01em; }
+.eyebrow { font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--brass); font-weight: 500; }
+header { display: flex; flex-direction: column; gap: 6px; }
+header h1 { font-size: clamp(2.2rem, 6vw, 3.2rem); line-height: 1.05; }
+
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.tile {
+  position: relative; aspect-ratio: 1 / 1; min-width: 0;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 4px;
+  padding: 20px; text-decoration: none; color: var(--ink);
+  background: repeating-linear-gradient(to bottom, transparent 0 11px, var(--line) 11px 12px) 0 28% / 100% 49px no-repeat, var(--surface);
+  border: 1px solid var(--line); border-radius: 4px; transition: border-color .2s, transform .2s;
+}
+.tile:hover { border-color: var(--accent); transform: translateY(-2px); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tile h2 { font-size: clamp(1.8rem, 5vw, 2.6rem); line-height: 1; }
+.tile .count { font-size: 13px; color: var(--muted); letter-spacing: 0.04em; }
+.tile .glyph { position: absolute; top: 14px; right: 18px; font-family: var(--font-display); font-size: 1.6rem; color: var(--brass); }
+
+.diary { display: flex; flex-direction: column; gap: 10px; }
+.diary h2 { font-size: 1.7rem; }
+textarea {
+  width: 100%; min-width: 0; height: calc(10 * 1.7em + 28px); resize: vertical;
+  font: inherit; font-size: 16px; line-height: 1.7; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px;
+}
+.tools { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+button.quiet {
+  font: inherit; font-size: 14px; color: var(--accent); background: none; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px;
+}
+button.quiet:hover { border-color: var(--accent); }
+.status { font-size: 13px; color: var(--muted); }
+details.backup { color: var(--muted); font-size: 14px; }
+details.backup summary { cursor: pointer; }
+details.backup .box { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+details.backup textarea { height: 7em; font-size: 13px; line-height: 1.4; font-family: ui-monospace, Menlo, monospace; }
+
+.back { align-self: flex-start; color: var(--muted); text-decoration: none; font-size: 14px; letter-spacing: 0.04em; }
+.back:hover { color: var(--accent); }
+.page-title { display: flex; flex-direction: column; gap: 4px; }
+.page-title h1 { font-size: clamp(2.4rem, 7vw, 3.6rem); line-height: 1; }
+.grid9 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px 12px; align-items: start; }
+.cell { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.clip {
+  aspect-ratio: 16 / 10; position: relative; width: 100%; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; color: var(--muted);
+}
+.clip .n { position: absolute; top: 6px; left: 10px; font-family: var(--font-display); font-size: 1.2rem; color: var(--brass); z-index: 2; text-shadow: 0 0 6px var(--surface); }
+.clip.empty .big { font-family: var(--font-display); font-size: clamp(2rem, 8vw, 3.4rem); opacity: .35; }
+button.thumb { cursor: pointer; font: inherit; }
+button.thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+button.thumb .play {
+  position: relative; z-index: 1; width: 44px; height: 44px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink); display: flex; align-items: center; justify-content: center;
+  font-size: 18px; padding-left: 3px; box-shadow: 0 2px 10px rgba(0,0,0,.35);
+}
+button.thumb:hover .play { filter: brightness(1.1); }
+.clip iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.caption { font-size: 13px; line-height: 1.3; color: var(--ink); overflow-wrap: anywhere; min-height: 2.6em; }
+.caption.dim { color: var(--muted); }
+
+.links { display: grid; grid-auto-flow: column; grid-template-rows: repeat(3, auto); grid-template-columns: repeat(3, 1fr); gap: 12px 24px; }
+.row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.row label { font-family: var(--font-display); font-size: 1.4rem; color: var(--brass); width: 1.6em; flex: none; text-align: right; }
+.row input {
+  flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px;
+}
+.row input.bad { border-color: #b3541e; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+@media (max-width: 640px) {
+  .links { grid-auto-flow: row; grid-template-columns: 1fr; }
+  .grid9 { gap: 12px 8px; }
+  button.thumb .play { width: 34px; height: 34px; font-size: 14px; }
+  .caption { font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .tile { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+(function () {
+  var KEY = "practiceRoom.v1";
+  var PAGES = [
+    { key: "scales", title: "Scales", glyph: "♯" },
+    { key: "triads", title: "Triads", glyph: "♮" },
+    { key: "rhythm", title: "Rhythm", glyph: "♩" },
+    { key: "songs",  title: "Songs",  glyph: "♪" }
+  ];
+  function blank() {
+    var d = { diary: "", pages: {}, titles: {} };
+    PAGES.forEach(function (p) { d.pages[p.key] = ["", "", "", "", "", "", "", "", ""]; });
+    return d;
+  }
+  function normalise(raw) {
+    var d = blank();
+    if (!raw || typeof raw !== "object") return d;
+    d.diary = typeof raw.diary === "string" ? raw.diary : "";
+    PAGES.forEach(function (p) {
+      var a = raw.pages && raw.pages[p.key];
+      for (var i = 0; i < 9; i++) d.pages[p.key][i] = a && typeof a[i] === "string" ? a[i] : "";
+    });
+    if (raw.titles && typeof raw.titles === "object") d.titles = raw.titles;
+    return d;
+  }
+  var data;
+  try { data = normalise(JSON.parse(localStorage.getItem(KEY))); } catch (e) { data = blank(); }
+  var storageOk = true;
+  function persist() {
+    try { localStorage.setItem(KEY, JSON.stringify(data)); setStatus("Saved on this device"); }
+    catch (e) { storageOk = false; setStatus("This browser is blocking saving. Turn off private browsing."); }
+  }
+  var timer = null;
+  function queueSave() { clearTimeout(timer); setStatus("Saving…"); timer = setTimeout(persist, 400); }
+
+  var app = document.getElementById("app");
+  function setStatus(t) { var s = document.getElementById("status"); if (s) s.textContent = t; }
+  function ytId(url) {
+    var m = String(url || "").trim().match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|embed\/|live\/))([\w-]{11})/i);
+    return m ? m[1] : null;
+  }
+  function filledCount(key) { return data.pages[key].filter(function (u) { return ytId(u); }).length; }
+  function el(tag, attrs, kids) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === "text") e.textContent = attrs[k]; else if (k === "class") e.className = attrs[k]; else e.setAttribute(k, attrs[k]);
+    });
+    (kids || []).forEach(function (c) { e.appendChild(c); });
+    return e;
+  }
+
+  function getTitle(id, caption) {
+    if (data.titles[id]) { caption.textContent = data.titles[id]; caption.classList.remove("dim"); return; }
+    caption.textContent = "Loading title…"; caption.classList.add("dim");
+    fetch("https://www.youtube.com/oembed?format=json&url=" + encodeURIComponent("https://www.youtube.com/watch?v=" + id))
+      .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+      .then(function (j) {
+        data.titles[id] = j.title || "YouTube video";
+        try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {}
+        caption.textContent = data.titles[id]; caption.classList.remove("dim");
+      })
+      .catch(function () { caption.textContent = "Title not available"; });
+  }
+
+  function home() {
+    app.textContent = "";
+    var tiles = el("nav", { class: "tiles", "aria-label": "Practice sections" });
+    PAGES.forEach(function (p) {
+      tiles.appendChild(el("a", { class: "tile", href: "#" + p.key }, [
+        el("span", { class: "glyph", "aria-hidden": "true", text: p.glyph }),
+        el("h2", { text: p.title }),
+        el("span", { class: "count", text: filledCount(p.key) + " of 9 clips" })
+      ]));
+    });
+    var ta = el("textarea", { id: "diary", "aria-label": "Practice diary", placeholder: "What did you work on today? What felt good, what needs more time?" });
+    ta.value = data.diary;
+    ta.addEventListener("input", function () { data.diary = ta.value; queueSave(); });
+    var dateBtn = el("button", { class: "quiet", type: "button", text: "Add today’s date" });
+    dateBtn.addEventListener("click", function () {
+      var d = new Date().toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+      ta.value = (ta.value ? ta.value.replace(/\s*$/, "") + "\n\n" : "") + d + "\n";
+      data.diary = ta.value; ta.focus(); ta.scrollTop = ta.scrollHeight; queueSave();
+    });
+
+    var bk = el("textarea", { id: "backup", "aria-label": "Backup text", spellcheck: "false" });
+    var bkMsg = el("span", { class: "status", role: "status" });
+    var copyBtn = el("button", { class: "quiet", type: "button", text: "Show my backup" });
+    copyBtn.addEventListener("click", function () {
+      bk.value = JSON.stringify({ diary: data.diary, pages: data.pages });
+      bk.select();
+      try { navigator.clipboard.writeText(bk.value).then(function () { bkMsg.textContent = "Copied. Paste it into a note to keep it safe."; }, function () { bkMsg.textContent = "Select the text above and copy it."; }); }
+      catch (e) { bkMsg.textContent = "Select the text above and copy it."; }
+    });
+    var restoreBtn = el("button", { class: "quiet", type: "button", text: "Restore from text" });
+    restoreBtn.addEventListener("click", function () {
+      try {
+        var next = normalise(JSON.parse(bk.value));
+        next.titles = data.titles; data = next; persist(); home();
+      } catch (e) { bkMsg.textContent = "That text is not a valid backup."; }
+    });
+    var backup = el("details", { class: "backup" }, [
+      el("summary", { text: "Backup and restore" }),
+      el("div", { class: "box" }, [
+        el("p", { class: "hint", text: "Your notes and links live in this browser. Keep a copy in your Notes app in case the browser data is cleared, or to move to another device. To restore, paste a saved backup below and press Restore." }),
+        bk, el("div", { class: "tools" }, [copyBtn, restoreBtn, bkMsg])
+      ])
+    ]);
+
+    app.appendChild(el("header", {}, [el("span", { class: "eyebrow", text: "Daily practice" }), el("h1", { text: "Practice Room" })]));
+    app.appendChild(tiles);
+    app.appendChild(el("section", { class: "diary" }, [
+      el("h2", { text: "Diary" }), ta,
+      el("div", { class: "tools" }, [dateBtn, el("span", { class: "status", id: "status", role: "status" })])
+    ]));
+    app.appendChild(backup);
+  }
+
+  function clipPage(p) {
+    app.textContent = "";
+    var grid = el("div", { class: "grid9" });
+    var links = el("div", { class: "links" });
+
+    function paintCell(i) {
+      var url = data.pages[p.key][i], id = ytId(url), cell = document.getElementById("cell" + i);
+      var fresh = el("div", { class: "cell", id: "cell" + i });
+      if (id) {
+        var btn = el("button", { class: "clip thumb", type: "button", "aria-label": "Play clip " + (i + 1) }, [
+          el("span", { class: "n", text: String(i + 1) }),
+          el("img", { src: "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg", alt: "", loading: "lazy" }),
+          el("span", { class: "play", "aria-hidden": "true", text: "▶" })
+        ]);
+        btn.addEventListener("click", function () {
+          var box = el("div", { class: "clip" }, [
+            el("iframe", {
+              src: "https://www.youtube-nocookie.com/embed/" + id + "?autoplay=1&playsinline=1&rel=0",
+              title: p.title + " clip " + (i + 1),
+              allow: "autoplay; encrypted-media; picture-in-picture; fullscreen",
+              allowfullscreen: ""
+            })
+          ]);
+          btn.replaceWith(box);
+        });
+        var cap = el("div", { class: "caption" });
+        fresh.appendChild(btn); fresh.appendChild(cap); getTitle(id, cap);
+      } else {
+        fresh.appendChild(el("div", { class: "clip empty" }, [
+          el("span", { class: "n", text: String(i + 1) }), el("span", { class: "big", "aria-hidden": "true", text: String(i + 1) })
+        ]));
+        fresh.appendChild(el("div", { class: "caption dim", text: " " }));
+      }
+      if (cell) cell.replaceWith(fresh); else grid.appendChild(fresh);
+    }
+    for (var i = 0; i < 9; i++) paintCell(i);
+
+    for (var j = 0; j < 9; j++) (function (i) {
+      var input = el("input", { id: "link" + i, type: "url", inputmode: "url", autocomplete: "off", autocapitalize: "off", placeholder: "Paste a YouTube link", "aria-label": "Link for clip " + (i + 1) });
+      input.value = data.pages[p.key][i];
+      function mark() { var v = input.value.trim(); input.classList.toggle("bad", v !== "" && !ytId(v)); }
+      mark();
+      var last = ytId(input.value);
+      input.addEventListener("input", function () {
+        data.pages[p.key][i] = input.value.trim(); mark(); queueSave();
+        var now = ytId(input.value);
+        if (now !== last) { last = now; paintCell(i); }
+      });
+      links.appendChild(el("div", { class: "row" }, [el("label", { for: "link" + i, text: (i + 1) + "." }), input]));
+    })(j);
+
+    app.appendChild(el("a", { class: "back", href: "#", text: "← Practice Room" }));
+    app.appendChild(el("div", { class: "page-title" }, [el("span", { class: "eyebrow", text: "Practice Room" }), el("h1", { text: p.title })]));
+    app.appendChild(grid); app.appendChild(links);
+    app.appendChild(el("div", { class: "tools" }, [el("span", { class: "status", id: "status", role: "status" })]));
+    app.appendChild(el("p", { class: "hint", text: "Tap a picture to play the clip here. Change or clear any line at any time; it saves on its own." }));
+  }
+
+  function route() {
+    var h = (location.hash || "").replace("#", "").toLowerCase();
+    var p = PAGES.filter(function (x) { return x.key === h; })[0];
+    if (p) clipPage(p); else home();
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener("hashchange", route);
+  route();
+})();
+</script>
+</body>
+</html>
