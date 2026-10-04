@@ -137,6 +137,11 @@ button.thumb:hover .play { filter: brightness(1.1); }
 .clip.song.unnamed .name { opacity: .35; font-size: clamp(2rem, 8vw, 3.4rem); }
 .links.names input { font-size: 16px; }
 @media (max-width: 760px) { .song-layout { grid-template-columns: 1fr; } .paper-sheet { max-width: 520px; } }
+.clip.song.import { border-style: dashed; }
+.clip.song.import .name { font-size: clamp(1rem, 3.4vw, 1.4rem); color: var(--accent); }
+#songdoc { height: calc(14 * 1.7em + 28px); font-size: 16px; }
+.tile-link { color: var(--accent); }
+button.quiet:disabled { opacity: .4; cursor: default; }
 </style>
 </head>
 <body>
@@ -193,7 +198,7 @@ button.thumb:hover .play { filter: brightness(1.1); }
     return m ? m[1] : null;
   }
   function count(p) {
-    if (p.songs) return data.songs.names.filter(function (n) { return n.trim(); }).length;
+    if (p.songs) return data.songs.names.slice(0, 8).filter(function (n) { return n.trim(); }).length;
     return data.pages[p.key].filter(function (u) { return ytId(u); }).length;
   }
   function el(tag, attrs, kids) {
@@ -264,7 +269,7 @@ button.thumb:hover .play { filter: brightness(1.1); }
       tiles.appendChild(el("a", { class: "tile", href: "#" + p.key }, [
         el("span", { class: "glyph", "aria-hidden": "true", text: p.glyph }),
         el("h2", { text: p.title }),
-        el("span", { class: "count", text: count(p) + (p.songs ? " of 9 songs" : " of 9 clips") })
+        el("span", { class: "count", text: count(p) + (p.songs ? " of 8 songs" : " of 9 clips") })
       ]));
     });
     var ta = el("textarea", { id: "diary", "aria-label": "Practice diary", placeholder: "What did you work on today? What felt good, what needs more time?" });
@@ -339,8 +344,12 @@ button.thumb:hover .play { filter: brightness(1.1); }
         el("span", { class: "name", text: nm || String(i + 1) })
       ]);
     }
-    for (var i = 0; i < 9; i++) grid.appendChild(box(i));
-    for (var j = 0; j < 9; j++) (function (i) {
+    for (var i = 0; i < 8; i++) grid.appendChild(box(i));
+    grid.appendChild(el("a", { class: "clip song import", href: "#songs-import", "aria-label": "Open songs and links" }, [
+      el("span", { class: "n", text: "9" }),
+      el("span", { class: "name", text: "Songs & links" })
+    ]));
+    for (var j = 0; j < 8; j++) (function (i) {
       lines.appendChild(makeLine(i + 1, names[i], "Song title", false, function (v) {
         names[i] = v; queueSave(); swap(grid, i, function () { return box(i); });
       }));
@@ -348,7 +357,70 @@ button.thumb:hover .play { filter: brightness(1.1); }
     app.appendChild(el("a", { class: "back", href: "#", text: "← Practice Room" }));
     app.appendChild(heading("Songs"));
     app.appendChild(grid); app.appendChild(lines); app.appendChild(statusRow());
-    app.appendChild(el("p", { class: "hint", text: "Type a song’s title on its numbered line. Tap its box to open the song’s page, with videos and a chord chart." }));
+    app.appendChild(el("p", { class: "hint", text: "Type a song’s title on its numbered line. Tap its box to open the song’s page, with videos and a chord chart. Box 9 fills all the songs and links from one pasted document." }));
+  }
+
+  /* Reads a pasted document: song names first, then links (or a dash for a missing one), three per song. */
+  function parseSongDoc(text) {
+    var lines = text.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(function (l) { return l; });
+    var names = [], entries = [], problems = [], inLinks = false;
+    lines.forEach(function (l, idx) {
+      var dash = /^[-–—]+$/.test(l), id = ytId(l), url = id ? (l.match(/https?:\/\/\S+/) || [l])[0] : "";
+      if (dash) { inLinks = true; entries.push(""); }
+      else if (id) { inLinks = true; entries.push(url); }
+      else if (/^https?:\/\//i.test(l)) { inLinks = true; problems.push("“" + l.slice(0, 40) + "” is not a YouTube link."); entries.push(""); }
+      else if (!inLinks) names.push(l.replace(/^\d+[.)]\s+/, ""));
+      else problems.push("“" + l.slice(0, 40) + "” comes after the links begin. Song names go first.");
+    });
+    var r = { names: names, entries: entries, problems: problems, ok: false, message: "" };
+    if (!names.length) r.problems.push("No song names found. Put the names first, one per line.");
+    if (names.length > 8) r.problems.push("Found " + names.length + " song names. The most the page holds is 8.");
+    if (names.length && entries.length !== names.length * 3)
+      r.problems.push("Expected " + names.length * 3 + " links (3 for each song, with a dash for any missing) but found " + entries.length + ".");
+    if (!r.problems.length) {
+      r.ok = true;
+      var real = entries.filter(function (u) { return u; }).length, short = [];
+      for (var i = 0; i < names.length; i++) {
+        var have = entries.slice(i * 3, i * 3 + 3).filter(function (u) { return u; }).length;
+        if (have < 3) short.push((i + 1) + " (" + have + ")");
+      }
+      r.message = "Found " + names.length + " songs and " + real + " links." + (short.length ? " Fewer than 3 links: song " + short.join(", song ") + "." : "");
+    }
+    return r;
+  }
+
+  function importPage() {
+    app.className = "wrap"; app.textContent = "";
+    var ta = el("textarea", { id: "songdoc", "aria-label": "Songs and links document", spellcheck: "false", autocapitalize: "off",
+      placeholder: "Dead Flowers\nTake It Easy\n...\n\nhttps://youtu.be/xxxxxxxxxxx\nhttps://youtu.be/yyyyyyyyyyy\n-\n..." });
+    var summary = el("p", { class: "hint", id: "summary", role: "status" });
+    var apply = el("button", { class: "quiet", type: "button", text: "Apply to my songs" });
+    apply.disabled = true;
+    var current = null;
+    function check() {
+      current = ta.value.trim() ? parseSongDoc(ta.value) : null;
+      apply.disabled = !(current && current.ok);
+      summary.textContent = !current ? "" : current.ok ? current.message + " Press Apply to replace the titles and links in boxes 1 to 8." : current.problems.join(" ");
+    }
+    ta.addEventListener("input", check);
+    apply.addEventListener("click", function () {
+      if (!current || !current.ok) return;
+      for (var i = 0; i < 8; i++) {
+        data.songs.names[i] = current.names[i] || "";
+        for (var j = 0; j < 3; j++) data.songs.links[i][j] = current.names[i] ? current.entries[i * 3 + j] : "";
+      }
+      persist();
+      app.textContent = "";
+      app.appendChild(el("a", { class: "back", href: "#songs", text: "← Songs" }));
+      app.appendChild(heading("Songs & links"));
+      app.appendChild(el("p", { text: "Done. " + current.message + " Chord charts were left as they were." }));
+      app.appendChild(el("a", { class: "tile-link", href: "#songs", text: "Go to the Songs page" }));
+    });
+    app.appendChild(el("a", { class: "back", href: "#songs", text: "← Songs" }));
+    app.appendChild(heading("Songs & links"));
+    app.appendChild(el("p", { class: "hint", text: "Paste one document: the song names first, one per line (up to 8), then the YouTube links, one per line, three for each song in the same order. Use a single dash on a line for any missing link. Applying replaces the titles and links in boxes 1 to 8 and keeps your chord charts." }));
+    app.appendChild(ta); app.appendChild(summary);
+    app.appendChild(el("div", { class: "tools" }, [apply, el("span", { class: "status", id: "status", role: "status" })]));
   }
 
   function songPage(k) {
@@ -376,9 +448,9 @@ button.thumb:hover .play { filter: brightness(1.1); }
 
   function route() {
     var h = (location.hash || "").replace("#", "").toLowerCase();
-    var sm = h.match(/^song-([1-9])$/);
+    var sm = h.match(/^song-([1-8])$/);
     var p = PAGES.filter(function (x) { return x.key === h; })[0];
-    if (sm) songPage(+sm[1]); else if (p && p.songs) songsPage(); else if (p) clipPage(p); else home();
+    if (sm) songPage(+sm[1]); else if (h === "songs-import") importPage(); else if (p && p.songs) songsPage(); else if (p) clipPage(p); else home();
     window.scrollTo(0, 0);
   }
   window.addEventListener("hashchange", route);
