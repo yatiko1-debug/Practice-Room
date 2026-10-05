@@ -142,6 +142,7 @@ button.thumb:hover .play { filter: brightness(1.1); }
 #songdoc { height: calc(14 * 1.7em + 28px); font-size: 16px; }
 .tile-link { color: var(--accent); }
 button.quiet:disabled { opacity: .4; cursor: default; }
+#songexport { height: calc(12 * 1.4em + 28px); font-size: 13px; line-height: 1.4; font-family: ui-monospace, Menlo, monospace; }
 </style>
 </head>
 <body>
@@ -303,10 +304,37 @@ button.quiet:disabled { opacity: .4; cursor: default; }
         bk, el("div", { class: "tools" }, [copyBtn, restoreBtn, bkMsg])
       ])
     ]);
+    /* copy just the song titles and links, in the format the paste box on the Songs page reads */
+    var sg = el("textarea", { id: "songexport", "aria-label": "Songs and links text", readonly: "readonly", spellcheck: "false" });
+    sg.hidden = true;
+    var sgMsg = el("span", { class: "status", role: "status" });
+    var sgBtn = el("button", { class: "quiet", type: "button", text: "Copy songs and links" });
+    sgBtn.addEventListener("click", function () {
+      var last = -1;
+      for (var i = 0; i < 8; i++) if (data.songs.names[i].trim() || data.songs.links[i].some(function (u) { return u; })) last = i;
+      if (last < 0) { sgMsg.textContent = "No songs yet. Add titles on the Songs page first."; sg.hidden = true; return; }
+      var ns = [], ls = [], real = 0;
+      for (var k = 0; k <= last; k++) {
+        ns.push(data.songs.names[k].trim() || "Song " + (k + 1));
+        for (var j = 0; j < 3; j++) { var u = data.songs.links[k][j].trim(); if (u) real++; ls.push(u || "-"); }
+      }
+      sg.value = ns.join("\n") + "\n\n" + ls.join("\n");
+      sg.hidden = false; sg.focus(); sg.select();
+      var done = "Found " + ns.length + " songs and " + real + " links.";
+      try { navigator.clipboard.writeText(sg.value).then(function () { sgMsg.textContent = done + " Copied. Paste it into a message or note."; }, function () { sgMsg.textContent = done + " Select the text above and copy it."; }); }
+      catch (e) { sgMsg.textContent = done + " Select the text above and copy it."; }
+    });
+    var songShare = el("section", { class: "diary" }, [
+      el("h2", { text: "Share my songs" }),
+      el("p", { class: "hint", text: "Copies only your song titles and video links, without your diary or chord charts. Someone else pastes it into box 9 on their Songs page." }),
+      sg, el("div", { class: "tools" }, [sgBtn, sgMsg])
+    ]);
+
     app.appendChild(el("header", {}, [el("span", { class: "eyebrow", text: "Daily practice" }), el("h1", { text: "Practice Room" })]));
     app.appendChild(tiles);
     app.appendChild(el("section", { class: "diary" }, [el("h2", { text: "Diary" }), ta,
       el("div", { class: "tools" }, [dateBtn, el("span", { class: "status", id: "status", role: "status" })])]));
+    app.appendChild(songShare);
     app.appendChild(backup);
   }
 
@@ -375,9 +403,12 @@ button.quiet:disabled { opacity: .4; cursor: default; }
     var r = { names: names, entries: entries, problems: problems, ok: false, message: "" };
     if (!names.length) r.problems.push("No song names found. Put the names first, one per line.");
     if (names.length > 8) r.problems.push("Found " + names.length + " song names. The most the page holds is 8.");
-    if (names.length && entries.length !== names.length * 3)
+    if (names.length && entries.length && entries.length !== names.length * 3)
       r.problems.push("Expected " + names.length * 3 + " links (3 for each song, with a dash for any missing) but found " + entries.length + ".");
-    if (!r.problems.length) {
+    if (!r.problems.length && !entries.length) {
+      r.ok = true; r.noLinks = true;
+      r.message = "Found " + names.length + " song titles and no links.";
+    } else if (!r.problems.length) {
       r.ok = true;
       var real = entries.filter(function (u) { return u; }).length, short = [];
       for (var i = 0; i < names.length; i++) {
@@ -400,16 +431,21 @@ button.quiet:disabled { opacity: .4; cursor: default; }
     function check() {
       current = ta.value.trim() ? parseSongDoc(ta.value) : null;
       apply.disabled = !(current && current.ok);
-      summary.textContent = !current ? "" : current.ok ? current.message + " Press Apply to replace the titles and links in boxes 1 to 8." : current.problems.join(" ");
+      summary.textContent = !current ? "" : current.ok ? current.message + (current.noLinks ? " Press Apply to set the titles in boxes 1 to 8. This clears the links in those boxes." : " Press Apply to replace the titles and links in boxes 1 to 8.") : current.problems.join(" ");
     }
-    ta.addEventListener("input", check);
+    try { ta.value = localStorage.getItem("practiceRoom.songdoc") || ""; } catch (e) {}
+    ta.addEventListener("input", function () {
+      try { localStorage.setItem("practiceRoom.songdoc", ta.value); } catch (e) {}
+      check();
+    });
     apply.addEventListener("click", function () {
       if (!current || !current.ok) return;
       for (var i = 0; i < 8; i++) {
         data.songs.names[i] = current.names[i] || "";
-        for (var j = 0; j < 3; j++) data.songs.links[i][j] = current.names[i] ? current.entries[i * 3 + j] : "";
+        for (var j = 0; j < 3; j++) data.songs.links[i][j] = current.names[i] && !current.noLinks ? current.entries[i * 3 + j] : "";
       }
       persist();
+      try { localStorage.removeItem("practiceRoom.songdoc"); } catch (e) {}
       app.textContent = "";
       app.appendChild(el("a", { class: "back", href: "#songs", text: "← Songs" }));
       app.appendChild(heading("Songs & links"));
@@ -418,8 +454,8 @@ button.quiet:disabled { opacity: .4; cursor: default; }
     });
     app.appendChild(el("a", { class: "back", href: "#songs", text: "← Songs" }));
     app.appendChild(heading("Songs & links"));
-    app.appendChild(el("p", { class: "hint", text: "Paste one document: the song names first, one per line (up to 8), then the YouTube links, one per line, three for each song in the same order. Use a single dash on a line for any missing link. Applying replaces the titles and links in boxes 1 to 8 and keeps your chord charts." }));
-    app.appendChild(ta); app.appendChild(summary);
+    app.appendChild(el("p", { class: "hint", text: "Paste one document: the song names first, one per line (up to 8). You can stop there, or add the YouTube links after them, one per line, three for each song in the same order, with a single dash for any missing link. What you paste is kept here until you apply it. Applying replaces the titles and links in boxes 1 to 8 and keeps your chord charts." }));
+    app.appendChild(ta); app.appendChild(summary); check();
     app.appendChild(el("div", { class: "tools" }, [apply, el("span", { class: "status", id: "status", role: "status" })]));
   }
 
